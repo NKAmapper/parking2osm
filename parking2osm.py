@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf8
 
-# parking2osm v1.0.0
+# parking2osm
 # Converts parkering areas from Statens Vegvesen api feed to osm format for import/update
 # Usage: python parking2osm.py [output_filename.osm]
 # Default output filename: "parkeringsregisteret.osm"
@@ -14,8 +14,12 @@ import json
 import sys
 
 
+version = "1.1.0"
+
 transform_name = {
 	'Alle': u'allé',
+	'alle': u'allé',
+	u'Allé': u'allé',
 	'AMFI': 'Amfi',
 	'Barnehage': 'barnehage',
 	'Boligsameie': 'boligsameie',
@@ -23,7 +27,9 @@ transform_name = {
 	'Borettslag': 'borettslag',
 	'brl': 'borettslag',
 	'Butikksenter': 'butikksenter',
+	'COOP': 'Coop',
 	'Ekspressparkering': 'ekspressparkering',
+	'EUROSPAR': 'Eurospar',
 	'Gammel': 'gammel',
 	'Gammelt': 'gammelt',
 	'Gate': 'gate',
@@ -40,6 +46,7 @@ transform_name = {
 	'INNE': 'inne',
 	'Innfartsparkering': 'innfartsparkering',
 	'Kirke': 'kirke',
+	'KIWI': 'Kiwi',
 	u'Kjøpesenter': u'kjøpesenter',
 	'Kundeparkering': 'kundeparkering',
 	'Lufthavn': 'lufthavn',
@@ -52,14 +59,20 @@ transform_name = {
 	'P-hus': 'p-hus',
 	'P-Hus': 'p-hus',
 	'P-HUS': 'p-hus',
-	'P-plass': 'p-plass',
-	'P-Plass': 'p-plass',
+	'P-område': '',
+	'P-plass': '',
+	'P-Plass': '',
+	'p-plass': '',
+	'P-tomt': '',
 	'P-sone': 'p-sone',
 	'Plan': 'plan',
 	'Plass': 'plass',
-	'Parkeringshus': 'parkeringshus',
-	'Parkeringsplass': 'parkeringsplass',
-	'Parkering': 'parkering',
+	'Parkering': '',
+	'parkering': '',
+	'Parkeringshus': 'p-hus',
+	'Parkeringsplass': '',
+	'parkeringsplass': '',
+	'Parkering': '',
 	'Senter': 'senter',
 	'Skole': 'skole',
 	'Sone': 'sone',
@@ -88,6 +101,7 @@ transform_name = {
 	'Vest': 'vest',
 	'vgs': u'videregående skole',
 	'VGS': u'videregående skole',
+	'Vgs': u'videregående skole',
 	u'Videregående': u'videregående',
 	u'Øst': u'øst',
 	u'Øvre': u'øvre',
@@ -158,36 +172,27 @@ if __name__ == '__main__':
 	parking_data = json.load(file)
 	file.close()
 
-	# Read postal code to municipality code translation table used to determine county (first two digits of municipality code)
+	# Load county names from Kartverket/GeoNorge
 
-	county_name = [None] * 51
-	county_name[1] = u'Østfold'
-	county_name[2] = 'Akershus'
-	county_name[3] = 'Oslo'
-	county_name[4] = 'Hedmark'
-	county_name[5] = 'Oppland'
-	county_name[6] = 'Buskerud'
-	county_name[7] = 'Vestfold'
-	county_name[8] = 'Telemark'
-	county_name[9] = 'Aust-Agder'
-	county_name[10] = 'Vest-Agder'
-	county_name[11] = 'Rogaland'
-	county_name[12] = 'Hordaland'
-	county_name[14] = 'Sogn og Fjordane'
-	county_name[15] = u'Møre og Romsdal'
-	county_name[50] = u'Trøndelag'
-	county_name[18] = 'Nordland'
-	county_name[19] = 'Troms'
-	county_name[20] = 'Finnmark'
-	county_name[21] = 'Svalbard'
-	county_name[22] = 'Jan Mayen'
+	filename = "https://register.geonorge.no/api/sosi-kodelister/fylkesnummer.json?"
+	file = urllib2.urlopen(filename)
+	county_data = json.load(file)
+	file.close()
 
-	postal_file = urllib2.urlopen('https://www.bring.no/postnummerregister-ansi.txt')
-	postal_codes = csv.DictReader(postal_file, fieldnames=['zip','post_city','municipality_ref','municipality','type'], delimiter="\t")
+	# Load postal code to municipality code translation table from Posten/Bring, used to determine county (first two digits of municipality code)
+
+	county_name = {}
+	for county in county_data['containeditems']:
+		if county['status'] == "Gyldig":
+			county_name[county['codevalue']] = county['label'].strip()
+
+	filename = "https://www.bring.no/postnummerregister-ansi.txt"
+	file = urllib2.urlopen(filename)
+	postal_codes = csv.DictReader(file, fieldnames=['zip','post_city','municipality_ref','municipality','type'], delimiter="\t")
 	municipality_id = [None] * 10000
 	for row in postal_codes:
 		municipality_id[int(row['zip'])] = row['municipality_ref']
-	postal_file.close()
+	file.close()
 
 	# Get output filename
 
@@ -203,7 +208,7 @@ if __name__ == '__main__':
 	message ("\nConverting to file %s ..." % filename)
 
 	file.write ('<?xml version="1.0" encoding="UTF-8"?>\n')
-	file.write ('<osm version="0.6" generator="parking2osm v1.0.0" upload="false">\n')
+	file.write ('<osm version="0.6" generator="parking2osm v%s" upload="false">\n' % version)
 
 	node_id = -1000
 	number = 0
@@ -241,21 +246,21 @@ if __name__ == '__main__':
 				name = name.title()
 
 			name_split = name.split()
-			name = name_split[0]
-			for word in name_split[1:]:  # Skip first word
+			name = ""
+			for word in name_split:
 				if word[-1] == ",":
 					word_without_comma = word[:-1]
 				else:
 					word_without_comma = word
 				if word_without_comma in transform_name:
 					if transform_name[word_without_comma]:
-						name += " " + transform_name[word_without_comma]
+						name += transform_name[word_without_comma] + " "
 						if word[-1] == ",":
 							name += ","
 				else:
-					name += " " + word
+					name += word + " "
 
-			name = name.replace("  ", " ").strip()
+			name = name[0].upper() + name[1:].replace("  ", " ").replace("- -", "-").strip()
 
 			# Fix operator name
 
@@ -331,8 +336,9 @@ if __name__ == '__main__':
 				operator = operator[0] + operator[1:].lower()
 				make_osm_line (u"HÅNDHEVER", operator)
 
-			county = county_name[ int(municipality_id[ int(pdata['postnummer']) ][0:2])]
-			if county:
+			county_id = municipality_id[ int(pdata['postnummer']) ][0:2]
+			if county_id in county_name:
+				county = county_name[county_id]
 				make_osm_line ("FYLKE", county)
 			else:
 				no_county += 0
