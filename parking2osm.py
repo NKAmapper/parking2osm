@@ -14,7 +14,7 @@ import json
 import sys
 
 
-version = "1.1.0"
+version = "1.2.0"
 
 transform_name = {
 	'Alle': u'allé',
@@ -220,7 +220,7 @@ if __name__ == '__main__':
 
 		pdata = parking['aktivVersjon']
 
-		if pdata['typeParkeringsomrade'] != "LANGS_KJOREBANE":
+		if not(parking['deaktivert']) and (pdata['typeParkeringsomrade'] != "LANGS_KJOREBANE"):
 
 			node_id -= 1
 			number += 1
