@@ -14,7 +14,7 @@ import json
 import sys
 
 
-version = "1.2.0"
+version = "1.3.0"
 
 transform_name = {
 	'Alle': u'allé',
@@ -179,19 +179,23 @@ if __name__ == '__main__':
 	county_data = json.load(file)
 	file.close()
 
-	# Load postal code to municipality code translation table from Posten/Bring, used to determine county (first two digits of municipality code)
-
 	county_name = {}
 	for county in county_data['containeditems']:
 		if county['status'] == "Gyldig":
 			county_name[county['codevalue']] = county['label'].strip()
 
+	# Load postal code to municipality code translation table from Posten/Bring, used to determine county (first two digits of municipality code)
+
 	filename = "https://www.bring.no/postnummerregister-ansi.txt"
 	file = urllib2.urlopen(filename)
 	postal_codes = csv.DictReader(file, fieldnames=['zip','post_city','municipality_ref','municipality','type'], delimiter="\t")
+
 	municipality_id = [None] * 10000
+	municipality_name = {}
 	for row in postal_codes:
 		municipality_id[int(row['zip'])] = row['municipality_ref']
+		municipality_name[row['municipality_ref']] = row['municipality'].decode('cp1252')  # Windows ANSI coding
+
 	file.close()
 
 	# Get output filename
@@ -212,6 +216,7 @@ if __name__ == '__main__':
 
 	node_id = -1000
 	number = 0
+	no_municipality = 0
 	no_county = 0
 
 	# Loop all parking areas and produce OSM file
@@ -336,10 +341,13 @@ if __name__ == '__main__':
 				operator = operator[0] + operator[1:].lower()
 				make_osm_line (u"HÅNDHEVER", operator)
 
-			county_id = municipality_id[ int(pdata['postnummer']) ][0:2]
-			if county_id in county_name:
-				county = county_name[county_id]
-				make_osm_line ("FYLKE", county)
+			municipality = municipality_id[ int(pdata['postnummer']) ]
+			if municipality in municipality_name:
+				make_osm_line("KOMMUNE", municipality_name[municipality])
+			else:
+				no_municipality += 0
+			if municipality[0:2] in county_name:
+				make_osm_line ("FYLKE", county_name[ municipality[0:2] ])
 			else:
 				no_county += 0
 
@@ -355,3 +363,5 @@ if __name__ == '__main__':
 	message ("\nParking areas: %i\n" % number)
 	if no_county > 0:
 		message ("Without county: %i\n" % no_county)
+	if no_municipality > 0:
+		message ("Without municipality: %i\n" % no_municipality)
