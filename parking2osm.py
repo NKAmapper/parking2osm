@@ -14,7 +14,7 @@ import json
 import sys
 
 
-version = "1.3.0"
+version = "1.4.0"
 
 transform_name = {
 	'Alle': u'allé',
@@ -289,7 +289,6 @@ if __name__ == '__main__':
 
 			file.write ('  <node id="%i" lat="%s" lon="%s">\n' % (node_id, parking['breddegrad'], parking['lengdegrad']))
 
-			make_osm_line ("amenity", "parking")
 			make_osm_line ("ref:pregister", str(parking['id']))
 			make_osm_line ("operator", operator)
 			make_osm_line ("name", name)
@@ -311,14 +310,18 @@ if __name__ == '__main__':
 			if name.find("utfartsparkering") >= 0:
 				make_osm_line ("hiking", "yes")
 
+			amenity = "parking"
 			if pdata['typeParkeringsomrade'] == "PARKERINGSHUS":  # Mostly underground (some are multi-storey)
 				make_osm_line ("parking", "underground")
+				amenity = "parking_entrance"
 			elif pdata['typeParkeringsomrade'] == "AVGRENSET_OMRADE":
 				make_osm_line ("parking", "surface")
 			elif pdata['typeParkeringsomrade'] == "LANGS_KJOREBANE":
 				make_osm_line ("parking", "street")
 			else:
 				make_osm_line ("parking", pdata['typeParkeringsomrade'])
+
+			make_osm_line ("amenity", amenity)
 
 			# Generate extra tags for help during import
 
