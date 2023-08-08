@@ -1,25 +1,26 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf8
 
 # parking2osm
 # Converts parkering areas from Statens Vegvesen api feed to osm format for import/update
-# Usage: python parking2osm.py [output_filename.osm]
+# Usage: python3 parking2osm.py [output_filename.osm]
 # Default output filename: "parkeringsregisteret.osm"
 
 
-import urllib2
-import cgi
+import urllib.request
+import html
 import csv
 import json
 import sys
+from io import TextIOWrapper
 
 
-version = "1.4.0"
+version = "2.0.0"
 
 transform_name = {
-	'Alle': u'allé',
-	'alle': u'allé',
-	u'Allé': u'allé',
+	'Alle': 'allé',
+	'alle': 'allé',
+	'Allé': 'allé',
 	'AMFI': 'Amfi',
 	'Barnehage': 'barnehage',
 	'Boligsameie': 'boligsameie',
@@ -39,7 +40,7 @@ transform_name = {
 	'Hagesenter': 'hagesenter',
 	'Havn': 'havn',
 	'HUS': 'hus',
-	u'Høgfjellstove': u'høgfjellstove',
+	'Høgfjellstove': 'høgfjellstove',
 	'Idrettshall': 'idrettshall',
 	'Idrettspark': 'idrettspark',
 	'Inne': 'inne',
@@ -47,15 +48,15 @@ transform_name = {
 	'Innfartsparkering': 'innfartsparkering',
 	'Kirke': 'kirke',
 	'KIWI': 'Kiwi',
-	u'Kjøpesenter': u'kjøpesenter',
+	'Kjøpesenter': 'kjøpesenter',
 	'Kundeparkering': 'kundeparkering',
 	'Lufthavn': 'lufthavn',
 	'Marina': 'marina',
 	'Nedre': 'nedre',
 	'Nord': 'nord',
 	'Nytt': 'nytt',
-	u'Næringspark': u'næringspark',
-	u'Nærsenter': u'nærsenter',
+	'Næringspark': 'næringspark',
+	'Nærsenter': 'nærsenter',
 	'P-hus': 'p-hus',
 	'P-Hus': 'p-hus',
 	'P-HUS': 'p-hus',
@@ -85,26 +86,26 @@ transform_name = {
 	'Syd': 'syd',
 	'Sykehjem': 'sykehjem',
 	'Sykehus': 'sykehus',
-	u'Sør': u'sør',
+	'Sør': 'sør',
 	'T-bane': 't-bane',
 	'Tennisklubb': 'tennisklubb',
 	'Terrasse': 'terrasse',
 	'Torg': 'torg',
 	'Torv': 'torv',
 	'Ute': 'ute',
-	u'Uteområde': u'uteområde',
+	'Uteområde': 'uteområde',
 	'Uteparkering': 'uteparkering',
 	'Utfartsparkering': 'utfartsparkering',
 	'Ved': 'ved',
 	'Veg': 'veg',
 	'Vei': 'vei',
 	'Vest': 'vest',
-	'vgs': u'videregående skole',
-	'VGS': u'videregående skole',
-	'Vgs': u'videregående skole',
-	u'Videregående': u'videregående',
-	u'Øst': u'øst',
-	u'Øvre': u'øvre',
+	'vgs': 'videregående skole',
+	'VGS': 'videregående skole',
+	'Vgs': 'videregående skole',
+	'Videregående': 'videregående',
+	'Øst': 'øst',
+	'Øvre': 'øvre',
 	'AS': '',
 	'HF': ''
 }
@@ -126,8 +127,8 @@ transform_operator = {
 	'jacobsen': 'Jacobsen',
 	'jangaard': 'Jangaard',
 	'griegsvei': 'Griegs vei',
-	u'øst': u'Øst',
-	u'sør': u'Sør',
+	'øst': 'Øst',
+	'sør': 'Sør',
 	'vest': 'Vest',
 	'nord': 'Nord',
 	'd': 'D',
@@ -146,8 +147,8 @@ transform_operator = {
 def make_osm_line (key,value):
 
 	if value:
-		encoded_key = cgi.escape(key.encode('utf-8'),True)
-		encoded_value = cgi.escape(value.encode('utf-8'),True)
+		encoded_key = html.escape(key).strip()
+		encoded_value = html.escape(value).strip()
 		file.write ('    <tag k="%s" v="%s" />\n' % (encoded_key, encoded_value))
 
 
@@ -165,17 +166,18 @@ if __name__ == '__main__':
 
 	# Load parking data from Statens Vegvesen
 
-	message ("Reading data ...")
+	message ("Loading data ...")
 
-	filename = "https://www.vegvesen.no/ws/no/vegvesen/veg/parkeringsomraade/parkeringsregisteret/v1/parkeringsomraade?datafelter=alle"
-	file = urllib2.urlopen(filename)
+#	filename = "https://www.vegvesen.no/ws/no/vegvesen/veg/parkeringsomraade/parkeringsregisteret/v1/parkeringsomraade?datafelter=alle"
+	filename = "https://parkreg-open.atlas.vegvesen.no/ws/no/vegvesen/veg/parkeringsomraade/parkeringsregisteret/v1/parkeringsomraade?datafelter=alle"
+	file = urllib.request.urlopen(filename)
 	parking_data = json.load(file)
 	file.close()
 
 	# Load county names from Kartverket/GeoNorge
 
 	filename = "https://register.geonorge.no/api/sosi-kodelister/fylkesnummer.json?"
-	file = urllib2.urlopen(filename)
+	file = urllib.request.urlopen(filename)
 	county_data = json.load(file)
 	file.close()
 
@@ -187,14 +189,14 @@ if __name__ == '__main__':
 	# Load postal code to municipality code translation table from Posten/Bring, used to determine county (first two digits of municipality code)
 
 	filename = "https://www.bring.no/postnummerregister-ansi.txt"
-	file = urllib2.urlopen(filename)
-	postal_codes = csv.DictReader(file, fieldnames=['zip','post_city','municipality_ref','municipality','type'], delimiter="\t")
+	file = urllib.request.urlopen(filename)
+	postal_codes = csv.DictReader(TextIOWrapper(file, "cp1252"), fieldnames=['zip','post_city','municipality_ref','municipality','type'], delimiter="\t")
 
 	municipality_id = [None] * 10000
 	municipality_name = {}
 	for row in postal_codes:
 		municipality_id[int(row['zip'])] = row['municipality_ref']
-		municipality_name[row['municipality_ref']] = row['municipality'].decode('cp1252')  # Windows ANSI coding
+		municipality_name[row['municipality_ref']] = row['municipality']  # .decode('cp1252')  # Windows ANSI coding
 
 	file.close()
 
